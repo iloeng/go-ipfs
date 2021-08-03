@@ -435,8 +435,6 @@ github.com/ipfs/go-ipfs-files v0.0.8 h1:8o0oFJkJ8UkO/ABl8T6ac6tKF3+NIpj67aAB6Zpu
 github.com/ipfs/go-ipfs-files v0.0.8/go.mod h1:wiN/jSG8FKyk7N0WyctKSvq3ljIa2NNTiZB55kpTdOs=
 github.com/ipfs/go-ipfs-keystore v0.0.2 h1:Fa9xg9IFD1VbiZtrNLzsD0GuELVHUFXCWF64kCPfEXU=
 github.com/ipfs/go-ipfs-keystore v0.0.2/go.mod h1:H49tRmibOEs7gLMgbOsjC4dqh1u5e0R/SWuc2ScfgSo=
-github.com/ipfs/go-ipfs-pinner v0.1.2-0.20210728161430-a223f5b32749 h1:t92ibx9OyuUwFgvb0squZP29iMf2H3YyMn0QMSQe1RY=
-github.com/ipfs/go-ipfs-pinner v0.1.2-0.20210728161430-a223f5b32749/go.mod h1:/u9kMe+TyQybN21O5OBicdyx3x93lVI77PCtiTnArUk=
 github.com/ipfs/go-ipfs-pinner v0.1.2 h1:Ve9OBhL6eg5+tVqEnIhPZOCXDtMjB+OhOohVZxPUxms=
 github.com/ipfs/go-ipfs-pinner v0.1.2/go.mod h1:/u9kMe+TyQybN21O5OBicdyx3x93lVI77PCtiTnArUk=
 github.com/ipfs/go-ipfs-posinfo v0.0.1 h1:Esoxj+1JgSjX0+ylc0hUmJCOv6V2vFoZiETLR6OtpRs=
@@ -669,8 +667,9 @@ github.com/libp2p/go-libp2p-core v0.8.0/go.mod h1:FfewUH/YpvWbEB+ZY9AQRQ4TAD8sJB
 github.com/libp2p/go-libp2p-core v0.8.1/go.mod h1:FfewUH/YpvWbEB+ZY9AQRQ4TAD8sJBt/G1rVvhz5XT8=
 github.com/libp2p/go-libp2p-core v0.8.2/go.mod h1:FfewUH/YpvWbEB+ZY9AQRQ4TAD8sJBt/G1rVvhz5XT8=
 github.com/libp2p/go-libp2p-core v0.8.5/go.mod h1:FfewUH/YpvWbEB+ZY9AQRQ4TAD8sJBt/G1rVvhz5XT8=
-github.com/libp2p/go-libp2p-core v0.8.6 h1:3S8g006qG6Tjpj1JdRK2S+TWc2DJQKX/RG9fdLeiLSU=
 github.com/libp2p/go-libp2p-core v0.8.6/go.mod h1:dgHr0l0hIKfWpGpqAMbpo19pen9wJfdCGv51mTmdpmM=
+github.com/libp2p/go-libp2p-core v0.9.0 h1:t97Mv0LIBZlP2FXVRNKKVzHJCIjbIWGxYptGId4+htU=
+github.com/libp2p/go-libp2p-core v0.9.0/go.mod h1:ESsbz31oC3C1AvMJoGx26RTuCkNhmkSRCqZ0kQtJ2/8=
 github.com/libp2p/go-libp2p-crypto v0.0.1/go.mod h1:yJkNyDmO341d5wwXxDUGO0LykUVT72ImHNUqh5D/dBE=
 github.com/libp2p/go-libp2p-crypto v0.0.2/go.mod h1:eETI5OUfBnvARGOHrJz2eWNyTUxEGZnBxMcbUjfIj4I=
 github.com/libp2p/go-libp2p-crypto v0.1.0/go.mod h1:sPUokVISZiy+nNuTTH/TY+leRSxnFj/2GLjtOTW90hI=
