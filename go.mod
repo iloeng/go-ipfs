@@ -12,7 +12,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.1.2
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/ipfs/go-bitswap v0.3.4
+	github.com/ipfs/go-bitswap v0.4.0
 	github.com/ipfs/go-block-format v0.0.3
 	github.com/ipfs/go-blockservice v0.1.7
 	github.com/ipfs/go-cid v0.0.7
@@ -30,7 +30,7 @@ require (
 	github.com/ipfs/go-ipfs-blockstore v0.1.6
 	github.com/ipfs/go-ipfs-chunker v0.0.5
 	github.com/ipfs/go-ipfs-cmds v0.6.0
-	github.com/ipfs/go-ipfs-config v0.14.0
+	github.com/ipfs/go-ipfs-config v0.16.0
 	github.com/ipfs/go-ipfs-exchange-interface v0.0.1
 	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipfs-files v0.0.8
@@ -44,7 +44,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-ipld-git v0.1.0
 	github.com/ipfs/go-ipld-legacy v0.1.0
-	github.com/ipfs/go-ipns v0.1.0
+	github.com/ipfs/go-ipns v0.1.2
 	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/go-merkledag v0.4.0
 	github.com/ipfs/go-metrics-interface v0.0.1
@@ -71,7 +71,7 @@ require (
 	github.com/libp2p/go-libp2p-core v0.8.6
 	github.com/libp2p/go-libp2p-discovery v0.5.1
 	github.com/libp2p/go-libp2p-http v0.2.0
-	github.com/libp2p/go-libp2p-kad-dht v0.12.2
+	github.com/libp2p/go-libp2p-kad-dht v0.13.1
 	github.com/libp2p/go-libp2p-kbucket v0.4.7
 	github.com/libp2p/go-libp2p-loggables v0.1.0
 	github.com/libp2p/go-libp2p-mplex v0.4.1
@@ -82,12 +82,12 @@ require (
 	github.com/libp2p/go-libp2p-quic-transport v0.11.2
 	github.com/libp2p/go-libp2p-record v0.1.3
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
-	github.com/libp2p/go-libp2p-swarm v0.5.0
-	github.com/libp2p/go-libp2p-testing v0.4.0
+	github.com/libp2p/go-libp2p-swarm v0.5.3
+	github.com/libp2p/go-libp2p-testing v0.4.2
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.5.4
 	github.com/libp2p/go-socket-activation v0.0.2
-	github.com/libp2p/go-tcp-transport v0.2.4
+	github.com/libp2p/go-tcp-transport v0.2.7
 	github.com/libp2p/go-ws-transport v0.4.0
 	github.com/lucas-clemente/quic-go v0.21.2
 	github.com/miekg/dns v1.1.41
