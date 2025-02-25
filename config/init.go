@@ -112,8 +112,10 @@ func addressesConfig() Addresses {
 		Swarm: []string{
 			"/ip4/0.0.0.0/tcp/4001",
 			"/ip6/::/tcp/4001",
+			"/ip4/0.0.0.0/udp/4001/webrtc-direct",
 			"/ip4/0.0.0.0/udp/4001/quic-v1",
 			"/ip4/0.0.0.0/udp/4001/quic-v1/webtransport",
+			"/ip6/::/udp/4001/webrtc-direct",
 			"/ip6/::/udp/4001/quic-v1",
 			"/ip6/::/udp/4001/quic-v1/webtransport",
 		},
@@ -133,6 +135,17 @@ func DefaultDatastoreConfig() Datastore {
 		GCPeriod:           "1h",
 		BloomFilterSize:    0,
 		Spec:               flatfsSpec(),
+	}
+}
+
+func pebbleSpec() map[string]interface{} {
+	return map[string]interface{}{
+		"type":   "measure",
+		"prefix": "pebble.datastore",
+		"child": map[string]interface{}{
+			"type": "pebbleds",
+			"path": "pebbleds",
+		},
 	}
 }
 
@@ -160,7 +173,7 @@ func flatfsSpec() map[string]interface{} {
 				"child": map[string]interface{}{
 					"type":      "flatfs",
 					"path":      "blocks",
-					"sync":      true,
+					"sync":      false,
 					"shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
 				},
 			},

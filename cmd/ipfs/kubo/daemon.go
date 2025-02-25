@@ -1,15 +1,19 @@
 package kubo
 
 import (
+	"context"
 	"errors"
 	_ "expvar"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,7 +91,7 @@ running, calls to 'ipfs' commands will be sent over the network to
 the daemon.
 `,
 		LongDescription: `
-The daemon will start listening on ports on the network, which are
+The Kubo daemon will start listening on ports on the network, which are
 documented in (and can be modified through) 'ipfs config Addresses'.
 For example, to change the 'Gateway' port:
 
@@ -107,11 +111,16 @@ other computers in the network, use 0.0.0.0 as the ip address:
 Be careful if you expose the RPC API. It is a security risk, as anyone could
 control your node remotely. If you need to control the node remotely,
 make sure to protect the port as you would other services or database
-(firewall, authenticated proxy, etc).
+(firewall, authenticated proxy, etc), or at least set API.Authorizations.
+
+If you do not want to open any ports for RPC, and only want to use
+kubo CLI client, it is possible to expose the RPC over Unix socket:
+
+  ipfs config Addresses.API /unix/var/run/kubo.socket
 
 HTTP Headers
 
-ipfs supports passing arbitrary headers to the RPC API and Gateway. You can
+Kubo supports passing arbitrary headers to the RPC API and Gateway. You can
 do this by setting headers on the API.HTTPHeaders and Gateway.HTTPHeaders
 keys:
 
@@ -122,7 +131,7 @@ Note that the value of the keys is an _array_ of strings. This is because
 headers can have more than one value, and it is convenient to pass through
 to other libraries.
 
-CORS Headers (for API)
+CORS Headers (for RPC API)
 
 You can setup CORS headers the same way:
 
@@ -139,7 +148,7 @@ second signal.
 
 IPFS_PATH environment variable
 
-ipfs uses a repository in the local file system. By default, the repo is
+Kubo uses a repository in the local file system. By default, the repo is
 located at ~/.ipfs. To change the repo location, set the $IPFS_PATH
 environment variable:
 
@@ -147,7 +156,7 @@ environment variable:
 
 DEPRECATION NOTICE
 
-Previously, ipfs used an environment variable as seen below:
+Previously, Kubo used an environment variable as seen below:
 
   export API_ORIGIN="http://localhost:8888/"
 
@@ -158,14 +167,14 @@ Headers.
 	},
 
 	Options: []cmds.Option{
-		cmds.BoolOption(initOptionKwd, "Initialize ipfs with default settings if not already initialized"),
+		cmds.BoolOption(initOptionKwd, "Initialize Kubo with default settings if not already initialized"),
 		cmds.StringOption(initConfigOptionKwd, "Path to existing configuration file to be loaded during --init"),
 		cmds.StringOption(initProfileOptionKwd, "Configuration profiles to apply for --init. See ipfs init --help for more"),
 		cmds.StringOption(routingOptionKwd, "Overrides the routing option").WithDefault(routingOptionDefaultKwd),
 		cmds.BoolOption(mountKwd, "Mounts IPFS to the filesystem using FUSE (experimental)"),
 		cmds.StringOption(ipfsMountKwd, "Path to the mountpoint for IPFS (if using --mount). Defaults to config setting."),
 		cmds.StringOption(ipnsMountKwd, "Path to the mountpoint for IPNS (if using --mount). Defaults to config setting."),
-		cmds.BoolOption(unrestrictedAPIAccessKwd, "Allow API access to unlisted hashes"),
+		cmds.BoolOption(unrestrictedAPIAccessKwd, "Allow RPC API access to unlisted hashes"),
 		cmds.BoolOption(unencryptTransportKwd, "Disable transport encryption (for debugging protocols)"),
 		cmds.BoolOption(enableGCKwd, "Enable automatic periodic repo garbage collection"),
 		cmds.BoolOption(adjustFDLimitKwd, "Check and raise file descriptor limits if needed").WithDefault(true),
@@ -286,7 +295,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		if !domigrate {
 			fmt.Println("Not running migrations of fs-repo now.")
 			fmt.Println("Please get fs-repo-migrations from https://dist.ipfs.tech")
-			return fmt.Errorf("fs-repo requires migration")
+			return errors.New("fs-repo requires migration")
 		}
 
 		// Read Migration section of IPFS config
@@ -371,6 +380,8 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		return err
 	}
 
+	fmt.Printf("PeerID: %s\n", cfg.Identity.PeerID)
+
 	if !psSet {
 		pubsub = cfg.Pubsub.Enabled.WithDefault(false)
 	}
@@ -399,12 +410,27 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		}
 	}
 
-	// Private setups can't leverage peers returned by default IPNIs (Routing.Type=auto)
-	// To avoid breaking existing setups, switch them to DHT-only.
-	if routingOption == routingOptionAutoKwd {
-		if key, _ := repo.SwarmKey(); key != nil || pnet.ForcePrivateNetwork {
+	if key, _ := repo.SwarmKey(); key != nil || pnet.ForcePrivateNetwork {
+		// Private setups can't leverage peers returned by default IPNIs (Routing.Type=auto)
+		// To avoid breaking existing setups, switch them to DHT-only.
+		if routingOption == routingOptionAutoKwd {
 			log.Error("Private networking (swarm.key / LIBP2P_FORCE_PNET) does not work with public HTTP IPNIs enabled by Routing.Type=auto. Kubo will use Routing.Type=dht instead. Update config to remove this message.")
 			routingOption = routingOptionDHTKwd
+		}
+
+		// Private setups should not use public AutoTLS infrastructure
+		// as it will leak their existence and PeerID identity to CA
+		// and they will show up at https://crt.sh/?q=libp2p.direct
+		enableAutoTLS := cfg.AutoTLS.Enabled.WithDefault(config.DefaultAutoTLSEnabled)
+		if enableAutoTLS {
+			if cfg.AutoTLS.Enabled != config.Default {
+				// hard fail if someone tries to explicitly enable both
+				return errors.New("private networking (swarm.key / LIBP2P_FORCE_PNET) does not work with AutoTLS.Enabled=true, update config to remove this message")
+			} else {
+				// print error and disable autotls if user runs on default settings
+				log.Error("private networking (swarm.key / LIBP2P_FORCE_PNET) is not compatible with AutoTLS. Set AutoTLS.Enabled=false in config to remove this message.")
+				cfg.AutoTLS.Enabled = config.False
+			}
 		}
 	}
 
@@ -425,7 +451,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		ncfg.Routing = libp2p.NilRouterOption
 	case routingOptionCustomKwd:
 		if cfg.Routing.AcceleratedDHTClient.WithDefault(config.DefaultAcceleratedDHTClient) {
-			return fmt.Errorf("Routing.AcceleratedDHTClient option is set even tho Routing.Type is custom, using custom .AcceleratedDHTClient needs to be set on DHT routers individually")
+			return errors.New("Routing.AcceleratedDHTClient option is set even tho Routing.Type is custom, using custom .AcceleratedDHTClient needs to be set on DHT routers individually")
 		}
 		ncfg.Routing = libp2p.ConstructDelegatedRouting(
 			cfg.Routing.Routers,
@@ -438,9 +464,11 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		return fmt.Errorf("unrecognized routing option: %s", routingOption)
 	}
 
-	agentVersionSuffixString, _ := req.Options[agentVersionSuffix].(string)
-	if agentVersionSuffixString != "" {
-		version.SetUserAgentSuffix(agentVersionSuffixString)
+	// Set optional agent version suffix
+	versionSuffixFromCli, _ := req.Options[agentVersionSuffix].(string)
+	versionSuffix := cfg.Version.AgentSuffix.WithDefault(versionSuffixFromCli)
+	if versionSuffix != "" {
+		version.SetUserAgentSuffix(versionSuffix)
 	}
 
 	node, err := core.NewNode(req.Context, ncfg)
@@ -454,12 +482,12 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		fmt.Printf("Swarm key fingerprint: %x\n", node.PNetFingerprint)
 	}
 
-	if (pnet.ForcePrivateNetwork || node.PNetFingerprint != nil) && routingOption == routingOptionAutoKwd {
+	if (pnet.ForcePrivateNetwork || node.PNetFingerprint != nil) && (routingOption == routingOptionAutoKwd || routingOption == routingOptionAutoClientKwd) {
 		// This should never happen, but better safe than sorry
 		log.Fatal("Private network does not work with Routing.Type=auto. Update your config to Routing.Type=dht (or none, and do manual peering)")
 	}
 
-	printSwarmAddrs(node)
+	printLibp2pPorts(node)
 
 	if node.PrivateKey.Type() == p2pcrypto.RSA {
 		fmt.Print(`
@@ -499,7 +527,11 @@ take effect.
 	if err != nil {
 		return err
 	}
-	node.Process.AddChild(goprocess.WithTeardown(cctx.Plugins.Close))
+	select {
+	case <-node.Process.Closing():
+	default:
+		node.Process.AddChild(goprocess.WithTeardown(cctx.Plugins.Close))
+	}
 
 	// construct api endpoint - every time
 	apiErrc, err := serveHTTPApi(req, cctx)
@@ -559,7 +591,7 @@ take effect.
 	// Add ipfs version info to prometheus metrics
 	ipfsInfoMetric := promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "ipfs_info",
-		Help: "IPFS version information.",
+		Help: "Kubo IPFS version information.",
 	}, []string{"version", "commit"})
 
 	// Setting to 1 lets us multiply it with other stats to add the version labels
@@ -573,7 +605,7 @@ take effect.
 	prometheus.MustRegister(&corehttp.IpfsNodeCollector{Node: node})
 
 	// start MFS pinning thread
-	startPinMFS(daemonConfigPollInterval, cctx, &ipfsPinMFSNode{node})
+	startPinMFS(cctx, daemonConfigPollInterval, &ipfsPinMFSNode{node})
 
 	// The daemon is *finally* ready.
 	fmt.Printf("Daemon is ready\n")
@@ -587,12 +619,30 @@ take effect.
 		fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
 	}()
 
-	// Give the user heads up if daemon running in online mode has no peers after 1 minute
 	if !offline {
+		// Warn users who were victims of 'lowprofile' footgun (https://github.com/ipfs/kubo/pull/10524)
+		if cfg.Experimental.StrategicProviding {
+			fmt.Print(`
+⚠️ Reprovide system is disabled due to 'Experimental.StrategicProviding=true'
+⚠️ Local CIDs will not be announced to Amino DHT, making them impossible to retrieve without manual peering
+⚠️ If this is not intentional, call 'ipfs config profile apply announce-on'
+
+`)
+		} else if cfg.Reprovider.Interval.WithDefault(config.DefaultReproviderInterval) == 0 {
+			fmt.Print(`
+⚠️ Reprovider system is disabled due to 'Reprovider.Interval=0'
+⚠️ Local CIDs will not be announced to Amino DHT, making them impossible to retrieve without manual peering
+⚠️ If this is not intentional, call 'ipfs config profile apply announce-on', or set 'Reprovider.Interval=22h'
+
+`)
+		}
+
+		// Give the user heads up if daemon running in online mode has no peers after 1 minute
 		time.AfterFunc(1*time.Minute, func() {
 			cfg, err := cctx.GetConfig()
 			if err != nil {
 				log.Errorf("failed to access config: %s", err)
+				return
 			}
 			if len(cfg.Bootstrap) == 0 && len(cfg.Peering.Peers) == 0 {
 				// Skip peer check if Bootstrap and Peering lists are empty
@@ -603,13 +653,24 @@ take effect.
 			ipfs, err := coreapi.NewCoreAPI(node)
 			if err != nil {
 				log.Errorf("failed to access CoreAPI: %v", err)
+				return
 			}
 			peers, err := ipfs.Swarm().Peers(cctx.Context())
 			if err != nil {
 				log.Errorf("failed to read swarm peers: %v", err)
+				return
 			}
 			if len(peers) == 0 {
 				log.Error("failed to bootstrap (no peers found): consider updating Bootstrap or Peering section of your config")
+			} else {
+				// After 1 minute we should have enough peers
+				// to run informed version check
+				startVersionChecker(
+					cctx.Context(),
+					node,
+					cfg.Version.SwarmCheckEnabled.WithDefault(true),
+					cfg.Version.SwarmCheckPercentThreshold.WithDefault(config.DefaultSwarmCheckPercentThreshold),
+				)
 			}
 		})
 	}
@@ -681,10 +742,18 @@ func serveHTTPApi(req *cmds.Request, cctx *oldcmds.Context) (<-chan error, error
 	for _, listener := range listeners {
 		// we might have listened to /tcp/0 - let's see what we are listing on
 		fmt.Printf("RPC API server listening on %s\n", listener.Multiaddr())
-		// Browsers require TCP.
+		// Browsers require TCP with explicit host.
 		switch listener.Addr().Network() {
 		case "tcp", "tcp4", "tcp6":
-			fmt.Printf("WebUI: http://%s/webui\n", listener.Addr())
+			rpc := listener.Addr().String()
+			// replace catch-all with explicit localhost URL that works in browsers
+			// https://github.com/ipfs/kubo/issues/10515
+			if strings.Contains(rpc, "0.0.0.0:") {
+				rpc = strings.Replace(rpc, "0.0.0.0:", "127.0.0.1:", 1)
+			} else if strings.Contains(rpc, "[::]:") {
+				rpc = strings.Replace(rpc, "[::]:", "[::1]:", 1)
+			}
+			fmt.Printf("WebUI: http://%s/webui\n", rpc)
 		}
 	}
 
@@ -754,17 +823,17 @@ func rewriteMaddrToUseLocalhostIfItsAny(maddr ma.Multiaddr) ma.Multiaddr {
 	first, rest := ma.SplitFirst(maddr)
 
 	switch {
-	case first.Equal(manet.IP4Unspecified):
+	case first.Equal(&manet.IP4Unspecified[0]):
 		return manet.IP4Loopback.Encapsulate(rest)
-	case first.Equal(manet.IP6Unspecified):
+	case first.Equal(&manet.IP6Unspecified[0]):
 		return manet.IP6Loopback.Encapsulate(rest)
 	default:
 		return maddr // not ip
 	}
 }
 
-// printSwarmAddrs prints the addresses of the host.
-func printSwarmAddrs(node *core.IpfsNode) {
+// printLibp2pPorts prints which ports are opened to facilitate swarm connectivity.
+func printLibp2pPorts(node *core.IpfsNode) {
 	if !node.IsOnline {
 		fmt.Println("Swarm not listening, running in offline mode.")
 		return
@@ -774,24 +843,49 @@ func printSwarmAddrs(node *core.IpfsNode) {
 	if err != nil {
 		log.Errorf("failed to read listening addresses: %s", err)
 	}
-	lisAddrs := make([]string, len(ifaceAddrs))
-	for i, addr := range ifaceAddrs {
-		lisAddrs[i] = addr.String()
-	}
-	sort.Strings(lisAddrs)
-	for _, addr := range lisAddrs {
-		fmt.Printf("Swarm listening on %s\n", addr)
+
+	// Multiple libp2p transports can use same port.
+	// Deduplicate all listeners and collect unique IP:port (udp|tcp) combinations
+	// which is useful information for operator deploying Kubo in TCP/IP infra.
+	addrMap := make(map[string]map[string]struct{})
+	re := regexp.MustCompile(`^/(?:ip[46]|dns(?:[46])?)/([^/]+)/(tcp|udp)/(\d+)(/.*)?$`)
+	for _, addr := range ifaceAddrs {
+		matches := re.FindStringSubmatch(addr.String())
+		if matches != nil {
+			hostname := matches[1]
+			protocol := strings.ToUpper(matches[2])
+			port := matches[3]
+			var host string
+			if matches[0][:4] == "/ip6" {
+				host = fmt.Sprintf("[%s]:%s", hostname, port)
+			} else {
+				host = fmt.Sprintf("%s:%s", hostname, port)
+			}
+			if _, ok := addrMap[host]; !ok {
+				addrMap[host] = make(map[string]struct{})
+			}
+			addrMap[host][protocol] = struct{}{}
+		}
 	}
 
-	nodePhostAddrs := node.PeerHost.Addrs()
-	addrs := make([]string, len(nodePhostAddrs))
-	for i, addr := range nodePhostAddrs {
-		addrs[i] = addr.String()
+	// Produce a sorted host:port list
+	hosts := make([]string, 0, len(addrMap))
+	for host := range addrMap {
+		hosts = append(hosts, host)
 	}
-	sort.Strings(addrs)
-	for _, addr := range addrs {
-		fmt.Printf("Swarm announcing %s\n", addr)
+	sort.Strings(hosts)
+
+	// Print listeners
+	for _, host := range hosts {
+		protocolsSet := addrMap[host]
+		protocols := make([]string, 0, len(protocolsSet))
+		for protocol := range protocolsSet {
+			protocols = append(protocols, protocol)
+		}
+		sort.Strings(protocols)
+		fmt.Printf("Swarm listening on %s (%s)\n", host, strings.Join(protocols, "+"))
 	}
+	fmt.Printf("Run 'ipfs id' to inspect announced and discovered multiaddrs of this node.\n")
 }
 
 // serveHTTPGateway collects options, creates listener, prints status message and starts serving requests.
@@ -1055,4 +1149,42 @@ func printVersion() {
 	fmt.Printf("Repo version: %d\n", fsrepo.RepoVersion)
 	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
 	fmt.Printf("Golang version: %s\n", runtime.Version())
+}
+
+func startVersionChecker(ctx context.Context, nd *core.IpfsNode, enabled bool, percentThreshold int64) {
+	if !enabled {
+		return
+	}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	go func() {
+		for {
+			o, err := commands.DetectNewKuboVersion(nd, percentThreshold)
+			if err != nil {
+				// The version check is best-effort, and may fail in custom
+				// configurations that do not run standard WAN DHT. If it
+				// errors here, no point in spamming logs: og once and exit.
+				log.Errorw("initial version check failed, will not be run again", "error", err)
+				return
+			}
+			if o.UpdateAvailable {
+				newerPercent := fmt.Sprintf("%.0f%%", math.Round(float64(o.WithGreaterVersion)/float64(o.PeersSampled)*100))
+				log.Errorf(`
+⚠️ A NEW VERSION OF KUBO DETECTED
+
+This Kubo node is running an outdated version (%s).
+%s of the sampled Kubo peers are running a higher version.
+Visit https://github.com/ipfs/kubo/releases or https://dist.ipfs.tech/#kubo and update to version %s or later.`,
+					o.RunningVersion, newerPercent, o.GreatestVersion)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-nd.Process.Closing():
+				return
+			case <-ticker.C:
+				continue
+			}
+		}
+	}()
 }

@@ -1,11 +1,18 @@
 package corehttp
 
 // WebUI version confirmed to work with this Kubo version
-const WebUIPath = "/ipfs/bafybeigggyffcf6yfhx5irtwzx3cgnk6n3dwylkvcpckzhqqrigsxowjwe" // v4.2.1
+const WebUIPath = "/ipfs/bafybeiata4qg7xjtwgor6r5dw63jjxyouenyromrrb4lrewxrlvav7gzgi" // v4.5.0
 
 // WebUIPaths is a list of all past webUI paths.
 var WebUIPaths = []string{
 	WebUIPath,
+	"/ipfs/bafybeigp3zm7cqoiciqk5anlheenqjsgovp7j7zq6hah4nu6iugdgb4nby", // v4.4.2
+	"/ipfs/bafybeiatztgdllxnp5p6zu7bdwhjmozsmd7jprff4bdjqjljxtylitvss4", // v4.4.1
+	"/ipfs/bafybeibgic2ex3fvzkinhy6k6aqyv3zy2o7bkbsmrzvzka24xetv7eeadm",
+	"/ipfs/bafybeid4uxz7klxcu3ffsnmn64r7ihvysamlj4ohl5h2orjsffuegcpaeq",
+	"/ipfs/bafybeif6abowqcavbkz243biyh7pde7ick5kkwwytrh7pd2hkbtuqysjxy",
+	"/ipfs/bafybeihatzsgposbr3hrngo42yckdyqcc56yean2rynnwpzxstvdlphxf4",
+	"/ipfs/bafybeigggyffcf6yfhx5irtwzx3cgnk6n3dwylkvcpckzhqqrigsxowjwe",
 	"/ipfs/bafybeidf7cpkwsjkq6xs3r6fbbxghbugilx3jtezbza7gua3k5wjixpmba",
 	"/ipfs/bafybeiamycmd52xvg6k3nzr6z3n33de6a2teyhquhj4kspdtnvetnkrfim",
 	"/ipfs/bafybeieqdeoqkf7xf4aozd524qncgiloh33qgr25lyzrkusbcre4c3fxay",
