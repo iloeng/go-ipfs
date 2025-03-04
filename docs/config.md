@@ -9,16 +9,6 @@ config file at runtime.
 
 - [The Kubo config file](#the-kubo-config-file)
 - [Table of Contents](#table-of-contents)
-  - [Profiles](#profiles)
-  - [Types](#types)
-    - [`flag`](#flag)
-    - [`priority`](#priority)
-    - [`strings`](#strings)
-    - [`duration`](#duration)
-    - [`optionalInteger`](#optionalinteger)
-    - [`optionalBytes`](#optionalbytes)
-    - [`optionalString`](#optionalstring)
-    - [`optionalDuration`](#optionalduration)
   - [`Addresses`](#addresses)
     - [`Addresses.API`](#addressesapi)
     - [`Addresses.Gateway`](#addressesgateway)
@@ -37,6 +27,15 @@ config file at runtime.
     - [`AutoNAT.Throttle.GlobalLimit`](#autonatthrottlegloballimit)
     - [`AutoNAT.Throttle.PeerLimit`](#autonatthrottlepeerlimit)
     - [`AutoNAT.Throttle.Interval`](#autonatthrottleinterval)
+  - [`AutoTLS`](#autotls)
+    - [`AutoTLS.Enabled`](#autotlsenabled)
+    - [`AutoTLS.AutoWSS`](#autotlsautowss)
+    - [`AutoTLS.ShortAddrs`](#autotlsshortaddrs)
+    - [`AutoTLS.DomainSuffix`](#autotlsdomainsuffix)
+    - [`AutoTLS.RegistrationEndpoint`](#autotlsregistrationendpoint)
+    - [`AutoTLS.RegistrationToken`](#autotlsregistrationtoken)
+    - [`AutoTLS.RegistrationDelay`](#autotlsregistrationdelay)
+    - [`AutoTLS.CAEndpoint`](#autotlscaendpoint)
   - [`Bootstrap`](#bootstrap)
   - [`Datastore`](#datastore)
     - [`Datastore.StorageMax`](#datastorestoragemax)
@@ -44,6 +43,8 @@ config file at runtime.
     - [`Datastore.GCPeriod`](#datastoregcperiod)
     - [`Datastore.HashOnRead`](#datastorehashonread)
     - [`Datastore.BloomFilterSize`](#datastorebloomfiltersize)
+    - [`Datastore.WriteThrough`](#datastorewritethrough)
+    - [`Datastore.BlockKeyCacheSize`](#datastoreblockkeycachesize)
     - [`Datastore.Spec`](#datastorespec)
   - [`Discovery`](#discovery)
     - [`Discovery.MDNS`](#discoverymdns)
@@ -180,184 +181,35 @@ config file at runtime.
     - [`Import.UnixFSRawLeaves`](#importunixfsrawleaves)
     - [`Import.UnixFSChunker`](#importunixfschunker)
     - [`Import.HashFunction`](#importhashfunction)
-
-## Profiles
-
-Configuration profiles allow to tweak configuration quickly. Profiles can be
-applied with the `--profile` flag to `ipfs init` or with the `ipfs config profile
-apply` command. When a profile is applied a backup of the configuration file
-will be created in `$IPFS_PATH`.
-
-The available configuration profiles are listed below. You can also find them
-documented in `ipfs config profile --help`.
-
-- `server`
-
-  Disables local host discovery, recommended when
-  running IPFS on machines with public IPv4 addresses.
-
-- `randomports`
-
-  Use a random port number for the incoming swarm connections.
-
-- `default-datastore`
-
-  Configures the node to use the default datastore (flatfs).
-
-  Read the "flatfs" profile description for more information on this datastore.
-
-  This profile may only be applied when first initializing the node.
-
-- `local-discovery`
-
-  Enables local discovery (enabled by default). Useful to re-enable local discovery after it's
-  disabled by another profile (e.g., the server profile).
-
-- `test`
-
-  Reduces external interference of IPFS daemon, this
-  is useful when using the daemon in test environments.
-
-- `default-networking`
-
-  Restores default network settings.
-  Inverse profile of the test profile.
-
-- `flatfs`
-
-  Configures the node to use the flatfs datastore. Flatfs is the default datastore.
-
-  This is the most battle-tested and reliable datastore.
-  You should use this datastore if:
-
-  - You need a very simple and very reliable datastore, and you trust your
-    filesystem. This datastore stores each block as a separate file in the
-    underlying filesystem so it's unlikely to lose data unless there's an issue
-    with the underlying file system.
-  - You need to run garbage collection in a way that reclaims free space as soon as possible.
-  - You want to minimize memory usage.
-  - You are ok with the default speed of data import, or prefer to use `--nocopy`.
-
-  This profile may only be applied when first initializing the node.
-
-
-- `badgerds`
-
-  Configures the node to use the experimental badger datastore. Keep in mind that this **uses an outdated badger 1.x**.
-
-  Use this datastore if some aspects of performance,
-  especially the speed of adding many gigabytes of files, are critical. However, be aware that:
-
-  - This datastore will not properly reclaim space when your datastore is
-    smaller than several gigabytes. If you run IPFS with `--enable-gc`, you plan on storing very little data in
-    your IPFS node, and disk usage is more critical than performance, consider using
-    `flatfs`.
-  - This datastore uses up to several gigabytes of memory.
-  - Good for medium-size datastores, but may run into performance issues if your dataset is bigger than a terabyte.
-  - The current implementation is based on old badger 1.x which is no longer supported by the upstream team.
-
-  This profile may only be applied when first initializing the node.
-
-- `lowpower`
-
-  Reduces daemon overhead on the system. Affects node
-  functionality - performance of content discovery and data
-  fetching may be degraded. Local data won't be announced on routing systems like Amino DHT.
-
-  - `Swarm.ConnMgr` set to maintain minimum number of p2p connections at a time.
-  - Disables [`Reprovider`](#reprovider) service → no CID will be announced on Amino DHT and other routing systems(!)
-  - Disables AutoNAT.
-
-  Use this profile with caution.
-
-- `legacy-cid-v0`
-
-  Makes UnixFS import (`ipfs add`) produce legacy CIDv0 with no raw leaves, sha2-256 and 256 KiB chunks.
-
-  > [!WARNING]
-  > This profile is provided for legacy users and should not be used for new projects.
-
-- `test-cid-v1`
-
-  Makes UnixFS import (`ipfs add`) produce modern CIDv1 with raw leaves, sha2-256 and 1 MiB chunks.
-
-  > [!NOTE]
-  > This profile will become the new implicit default, provided for testing purposes.
-  > Follow [kubo#4143](https://github.com/ipfs/kubo/issues/4143) for more details.
-
-## Types
-
-This document refers to the standard JSON types (e.g., `null`, `string`,
-`number`, etc.), as well as a few custom types, described below.
-
-### `flag`
-
-Flags allow enabling and disabling features. However, unlike simple booleans,
-they can also be `null` (or omitted) to indicate that the default value should
-be chosen. This makes it easier for Kubo to change the defaults in the
-future unless the user _explicitly_ sets the flag to either `true` (enabled) or
-`false` (disabled). Flags have three possible states:
-
-- `null` or missing (apply the default value).
-- `true` (enabled)
-- `false` (disabled)
-
-### `priority`
-
-Priorities allow specifying the priority of a feature/protocol and disabling the
-feature/protocol. Priorities can take one of the following values:
-
-- `null`/missing (apply the default priority, same as with flags)
-- `false` (disabled)
-- `1 - 2^63` (priority, lower is preferred)
-
-### `strings`
-
-Strings is a special type for conveniently specifying a single string, an array
-of strings, or null:
-
-- `null`
-- `"a single string"`
-- `["an", "array", "of", "strings"]`
-
-### `duration`
-
-Duration is a type for describing lengths of time, using the same format go
-does (e.g, `"1d2h4m40.01s"`).
-
-### `optionalInteger`
-
-Optional integers allow specifying some numerical value which has
-an implicit default when missing from the config file:
-
-- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault(value)`)
-- an integer between `-2^63` and `2^63-1` (i.e. `-9223372036854775808` to `9223372036854775807`)
-
-### `optionalBytes`
-
-Optional Bytes allow specifying some number of bytes which has
-an implicit default when missing from the config file:
-
-- `null`/missing (apply the default value defined in Kubo sources)
-- a string value indicating the number of bytes, including human readable representations:
-  - [SI sizes](https://en.wikipedia.org/wiki/Metric_prefix#List_of_SI_prefixes) (metric units, powers of 1000), e.g. `1B`, `2kB`, `3MB`, `4GB`, `5TB`, …)
-  - [IEC sizes](https://en.wikipedia.org/wiki/Binary_prefix#IEC_prefixes) (binary units, powers of 1024), e.g. `1B`, `2KiB`, `3MiB`, `4GiB`, `5TiB`, …)
-
-### `optionalString`
-
-Optional strings allow specifying some string value which has
-an implicit default when missing from the config file:
-
-- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault("value")`)
-- a string
-
-### `optionalDuration`
-
-Optional durations allow specifying some duration value which has
-an implicit default when missing from the config file:
-
-- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault("1h2m3s")`)
-- a string with a valid [go duration](#duration)  (e.g, `"1d2h4m40.01s"`).
+    - [`Import.BatchMaxNodes`](#importbatchmaxnodes)
+    - [`Import.BatchMaxSize`](#importbatchmaxsize)
+  - [`Version`](#version)
+    - [`Version.AgentSuffix`](#versionagentsuffix)
+    - [`Version.SwarmCheckEnabled`](#versionswarmcheckenabled)
+    - [`Version.SwarmCheckPercentThreshold`](#versionswarmcheckpercentthreshold)
+  - [Profiles](#profiles)
+    - [`server` profile](#server-profile)
+    - [`randomports` profile](#randomports-profile)
+    - [`default-datastore` profile](#default-datastore-profile)
+    - [`local-discovery` profile](#local-discovery-profile)
+    - [`default-networking` profile](#default-networking-profile)
+    - [`flatfs` profile](#flatfs-profile)
+    - [`pebbleds` profile](#pebbleds-profile)
+    - [`badgerds` profile](#badgerds-profile)
+    - [`lowpower` profile](#lowpower-profile)
+    - [`announce-off` profile](#announce-off-profile)
+    - [`announce-on` profile](#announce-on-profile)
+    - [`legacy-cid-v0` profile](#legacy-cid-v0-profile)
+    - [`test-cid-v1` profile](#test-cid-v1-profile)
+  - [Types](#types)
+    - [`flag`](#flag)
+    - [`priority`](#priority)
+    - [`strings`](#strings)
+    - [`duration`](#duration)
+    - [`optionalInteger`](#optionalinteger)
+    - [`optionalBytes`](#optionalbytes)
+    - [`optionalString`](#optionalstring)
+    - [`optionalDuration`](#optionalduration)
 
 ## `Addresses`
 
@@ -365,7 +217,7 @@ Contains information about various listener addresses to be used by this node.
 
 ### `Addresses.API`
 
-Multiaddr or array of multiaddrs describing the address to serve
+[Multiaddr][multiaddr] or array of multiaddrs describing the addresses to serve
 the local [Kubo RPC API](https://docs.ipfs.tech/reference/kubo/rpc/) (`/api/v0`).
 
 Supported Transports:
@@ -375,11 +227,11 @@ Supported Transports:
 
 Default: `/ip4/127.0.0.1/tcp/5001`
 
-Type: `strings` (multiaddrs)
+Type: `strings` ([multiaddrs][multiaddr])
 
 ### `Addresses.Gateway`
 
-Multiaddr or array of multiaddrs describing the address to serve
+[Multiaddr][multiaddr] or array of multiaddrs describing the address to serve
 the local [HTTP gateway](https://specs.ipfs.tech/http-gateways/) (`/ipfs`, `/ipns`) on.
 
 Supported Transports:
@@ -389,11 +241,11 @@ Supported Transports:
 
 Default: `/ip4/127.0.0.1/tcp/8080`
 
-Type: `strings` (multiaddrs)
+Type: `strings` ([multiaddrs][multiaddr])
 
 ### `Addresses.Swarm`
 
-An array of multiaddrs describing which addresses to listen on for p2p swarm
+An array of [multiaddrs][multiaddr] describing which addresses to listen on for p2p swarm
 connections.
 
 Supported Transports:
@@ -417,7 +269,7 @@ Default:
 ]
 ```
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ### `Addresses.Announce`
 
@@ -426,7 +278,7 @@ network. If empty, the daemon will announce inferred swarm addresses.
 
 Default: `[]`
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ### `Addresses.AppendAnnounce`
 
@@ -435,16 +287,22 @@ override inferred swarm addresses if non-empty.
 
 Default: `[]`
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ### `Addresses.NoAnnounce`
 
 An array of swarm addresses not to announce to the network.
 Takes precedence over `Addresses.Announce` and `Addresses.AppendAnnounce`.
 
+> [!TIP]
+> The [`server` configuration profile](#server-profile) fills up this list with sensible defaults,
+> preventing announcement of non-routable IP addresses (e.g., `/ip4/192.168.0.0/ipcidr/16`,
+> which is the [multiaddress][multiaddr] representation of `192.168.0.0/16`) but you should always
+> check settings against your own network and/or hosting provider.
+
 Default: `[]`
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ## `API`
 
@@ -457,7 +315,7 @@ Map of HTTP headers to set on responses from the RPC (`/api/v0`) HTTP server.
 Example:
 ```json
 {
-	"Foo": ["bar"]
+  "Foo": ["bar"]
 }
 ```
 
@@ -483,7 +341,7 @@ secret.
 
 Default: `null`
 
-Type: `object[string -> object]` (user name -> authorization object, see bellow)
+Type: `object[string -> object]` (user name -> authorization object, see below)
 
 For example, to limit RPC access to Alice (access `id` and MFS `files` commands with HTTP Basic Auth)
 and Bob (full access with Bearer token):
@@ -548,7 +406,7 @@ Type: `array[string]`
 
 ## `AutoNAT`
 
-Contains the configuration options for the AutoNAT service. The AutoNAT service
+Contains the configuration options for the libp2p's [AutoNAT](https://github.com/libp2p/specs/tree/master/autonat) service. The AutoNAT service
 helps other nodes on the network determine if they're publicly reachable from
 the rest of the internet.
 
@@ -557,13 +415,22 @@ the rest of the internet.
 When unset (default), the AutoNAT service defaults to _enabled_. Otherwise, this
 field can take one of two values:
 
-* "enabled" - Enable the service (unless the node determines that it, itself,
-  isn't reachable by the public internet).
-* "disabled" - Disable the service.
+* `enabled` - Enable the V1+V2 service (unless the node determines that it,
+  itself, isn't reachable by the public internet).
+* `legacy-v1` - Same as `enabled` but only V1 service is enabled. Used for testing
+  during as few releases as we [transition to V2](https://github.com/ipfs/kubo/issues/10091), will be removed in the future.
+* `disabled` - Disable the service.
 
 Additional modes may be added in the future.
 
-Type: `string` (one of `"enabled"` or `"disabled"`)
+> [!IMPORTANT]
+> We are in the progress of [rolling out AutoNAT V2](https://github.com/ipfs/kubo/issues/10091).
+> Right now, by default, a publicly dialable Kubo provides both V1 and V2 service to other peers,
+> but only V1 is used by Kubo as a client. In a future release we will remove V1 and switch client to use V2.
+
+Default: `enabled`
+
+Type: `optionalString`
 
 ### `AutoNAT.Throttle`
 
@@ -595,13 +462,132 @@ Default: 1 Minute
 
 Type: `duration` (when `0`/unset, the default value is used)
 
+## `AutoTLS`
+
+The [AutoTLS](https://blog.libp2p.io/autotls/) feature enables publicly reachable Kubo nodes (those dialable from the public
+internet) to automatically obtain a wildcard TLS certificate for a DNS name
+unique to their PeerID at `*.[PeerID].libp2p.direct`. This enables direct
+libp2p connections and retrieval of IPFS content from browsers [Secure Context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts)
+using transports such as [Secure WebSockets](https://github.com/libp2p/specs/blob/master/websockets/README.md),
+without requiring user to do any manual domain registration and certificate configuration.
+
+Under the hood, [p2p-forge] client uses public utility service at `libp2p.direct` as an [ACME DNS-01 Challenge](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge)
+broker enabling peer to obtain a wildcard TLS certificate tied to public key of their [PeerID](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id).
+
+By default, the certificates are requested from Let's Encrypt. Origin and rationale for this project can be found in [community.letsencrypt.org discussion](https://community.letsencrypt.org/t/feedback-on-raising-certificates-per-registered-domain-to-enable-peer-to-peer-networking/223003).
+
+<a href="https://ipshipyard.com/"><img align="right" src="https://github.com/user-attachments/assets/39ed3504-bb71-47f6-9bf8-cb9a1698f272" /></a>
+
+> [!NOTE]
+> Public good DNS and [p2p-forge] infrastructure at `libp2p.direct` is run by the team at [Interplanetary Shipyard](https://ipshipyard.com).
+>
+[p2p-forge]: https://github.com/ipshipyard/p2p-forge
+
+Default: `{}`
+
+Type: `object`
+
+### `AutoTLS.Enabled`
+
+Enables the AutoTLS feature to provide DNS and TLS support for [libp2p Secure WebSocket](https://github.com/libp2p/specs/blob/master/websockets/README.md) over a `/tcp` port,
+to allow JS clients running in web browser [Secure Context](https://w3c.github.io/webappsec-secure-contexts/) to connect to Kubo directly.
+
+When activated, together with [`AutoTLS.AutoWSS`](#autotlsautowss) (default) or manually including a `/tcp/{port}/tls/sni/*.libp2p.direct/ws` multiaddr in [`Addresses.Swarm`](#addressesswarm)
+(with SNI suffix matching [`AutoTLS.DomainSuffix`](#autotlsdomainsuffix)), Kubo retrieves a trusted PKI TLS certificate for `*.{peerid}.libp2p.direct` and configures the `/ws` listener to use it.
+
+**Note:**
+
+- This feature requires a publicly reachable node. If behind NAT, manual port forwarding or UPnP (`Swarm.DisableNatPortMap=false`) is required.
+- The first time AutoTLS is used, it may take 5-15 minutes + [`AutoTLS.RegistrationDelay`](#autotlsregistrationdelay) before `/ws` listener is added. Be patient.
+- Avoid manual configuration. [`AutoTLS.AutoWSS=true`](#autotlsautowss) should automatically add `/ws` listener to existing, firewall-forwarded `/tcp` ports.
+- To troubleshoot, use `GOLOG_LOG_LEVEL="error,autotls=debug` for detailed logs, or `GOLOG_LOG_LEVEL="error,autotls=info` for quieter output.
+- Certificates are stored in `$IPFS_PATH/p2p-forge-certs`; deleting this directory and restarting the daemon forces a certificate rotation.
+- For now, the TLS cert applies solely to `/ws` libp2p WebSocket connections, not HTTP [`Gateway`](#gateway), which still need separate reverse proxy TLS setup with a custom domain.
+
+Default: `true`
+
+Type: `flag`
+
+### `AutoTLS.AutoWSS`
+
+Optional. Controls if Kubo should add `/tls/sni/*.libp2p.direct/ws` listener to every pre-existing `/tcp` port IFF no explicit `/ws` is defined in [`Addresses.Swarm`](#addressesswarm) already.
+
+Default: `true` (if `AutoTLS.Enabled`)
+
+Type: `flag`
+
+### `AutoTLS.ShortAddrs`
+
+Optional. Controls if final AutoTLS listeners are announced under shorter `/dnsX/A.B.C.D.peerid.libp2p.direct/tcp/4001/tls/ws` addresses instead of fully resolved `/ip4/A.B.C.D/tcp/4001/tls/sni/A-B-C-D.peerid.libp2p.direct/tls/ws`.
+
+The main use for AutoTLS is allowing connectivity from Secure Context in a web browser, and DNS lookup needs to happen there anyway, making `/dnsX` a more compact, more interoperable option without obvious downside.
+
+Default: `true`
+
+Type: `flag`
+
+### `AutoTLS.DomainSuffix`
+
+Optional override of the parent domain suffix that will be used in DNS+TLS+WebSockets multiaddrs generated by [p2p-forge] client.
+Do not change this unless you self-host [p2p-forge].
+
+Default: `libp2p.direct` (public good run by [Interplanetary Shipyard](https://ipshipyard.com))
+
+Type: `optionalString`
+
+### `AutoTLS.RegistrationEndpoint`
+
+Optional override of [p2p-forge] HTTP registration API.
+Do not change this unless you self-host [p2p-forge] under own domain.
+
+> [!IMPORTANT]
+> The default endpoint performs [libp2p Peer ID Authentication over HTTP](https://github.com/libp2p/specs/blob/master/http/peer-id-auth.md)
+> (proving ownership of PeerID), probes if your Kubo node can correctly answer to a [libp2p Identify](https://github.com/libp2p/specs/tree/master/identify) query.
+> This ensures only a correctly configured, publicly dialable Kubo can initiate [ACME DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge) for `peerid.libp2p.direct`.
+
+Default: `https://registration.libp2p.direct` (public good run by [Interplanetary Shipyard](https://ipshipyard.com))
+
+Type: `optionalString`
+
+### `AutoTLS.RegistrationToken`
+
+Optional value for `Forge-Authorization` token sent with request to `RegistrationEndpoint`
+(useful for private/self-hosted/test instances of [p2p-forge], unset by default).
+
+Default: `""`
+
+Type: `optionalString`
+
+### `AutoTLS.RegistrationDelay`
+
+An additional delay applied before sending a request to the `RegistrationEndpoint`.
+
+The default delay is bypassed if the user explicitly set `AutoTLS.Enabled=true` in the JSON configuration file.
+This ensures that ephemeral nodes using the default configuration do not spam the`AutoTLS.CAEndpoint` with unnecessary ACME requests.
+
+Default: `1h` (or `0` if explicit `AutoTLS.Enabled=true`)
+
+Type: `optionalDuration`
+
+### `AutoTLS.CAEndpoint`
+
+Optional override of CA ACME API used by [p2p-forge] system.
+Do not change this unless you self-host [p2p-forge] under own domain.
+
+> [!IMPORTANT]
+> CAA DNS record at `libp2p.direct` limits CA choice to Let's Encrypt. If you want to use a different CA, use your own domain.
+
+Default: [certmagic.LetsEncryptProductionCA](https://pkg.go.dev/github.com/caddyserver/certmagic#pkg-constants) (see [community.letsencrypt.org discussion](https://community.letsencrypt.org/t/feedback-on-raising-certificates-per-registered-domain-to-enable-peer-to-peer-networking/223003))
+
+Type: `optionalString`
+
 ## `Bootstrap`
 
-Bootstrap is an array of multiaddrs of trusted nodes that your node connects to, to fetch other nodes of the network on startup.
+Bootstrap is an array of [multiaddrs][multiaddr] of trusted nodes that your node connects to, to fetch other nodes of the network on startup.
 
-Default: The ipfs.io bootstrap nodes
+Default: [`config.DefaultBootstrapAddresses`](https://github.com/ipfs/kubo/blob/master/config/bootstrap_peers.go)
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ## `Datastore`
 
@@ -661,9 +647,47 @@ we'd want to use 1199120 bytes. As of writing, [7 hash
 functions](https://github.com/ipfs/go-ipfs-blockstore/blob/547442836ade055cc114b562a3cc193d4e57c884/caching.go#L22)
 are used, so the constant `k` is 7 in the formula.
 
+Enabling the BloomFilter can provide performance improvements specially when
+responding to many requests for inexistent blocks. It however requires a full
+sweep of all the datastore keys on daemon start. On very large datastores this
+can be a very taxing operation, particularly if the datastore does not support
+querying existing keys without reading their values at the same time (blocks).
+
 Default: `0` (disabled)
 
 Type: `integer` (non-negative, bytes)
+
+### `Datastore.WriteThrough`
+
+This option controls whether a block that already exist in the datastore
+should be written to it. When set to `false`, a `Has()` call is performed
+against the datastore prior to writing every block. If the block is already
+stored, the write is skipped. This check happens both on the Blockservice and
+the Blockstore layers and this setting affects both.
+
+When set to `true`, no checks are performed and blocks are written to the
+datastore, which depending on the implementation may perform its own checks.
+
+This option can affect performance and the strategy should be taken in
+conjunction with [`BlockKeyCacheSize`](#datastoreblockkeycachesize) and
+[`BloomFilterSize`](#datastoreboomfiltersize`).
+
+Default: `true`
+
+Type: `bool`
+
+### `Datastore.BlockKeyCacheSize`
+
+A number representing the maximum size in bytes of the blockstore's Two-Queue
+cache, which caches block-cids and their block-sizes. Use `0` to disable.
+
+This cache, once primed, can greatly speed up operations like `ipfs repo stat`
+as there is no need to read full blocks to know their sizes. Size should be
+adjusted depending on the number of CIDs on disk (`NumObjects in `ipfs repo stat`).
+
+Default: `65536` (64KiB)
+
+Type: `optionalInteger` (non-negative, bytes)
 
 ### `Datastore.Spec`
 
@@ -671,39 +695,34 @@ Spec defines the structure of the ipfs datastore. It is a composable structure,
 where each datastore is represented by a json object. Datastores can wrap other
 datastores to provide extra functionality (eg metrics, logging, or caching).
 
-This can be changed manually, however, if you make any changes that require a
-different on-disk structure, you will need to run the [ipfs-ds-convert
-tool](https://github.com/ipfs/ipfs-ds-convert) to migrate data into the new
-structures.
-
-For more information on possible values for this configuration option, see
-[docs/datastores.md](datastores.md)
+> [!NOTE]
+> For more information on possible values for this configuration option, see [`kubo/docs/datastores.md`](datastores.md)
 
 Default:
 ```
 {
   "mounts": [
-	{
-	  "child": {
-		"path": "blocks",
-		"shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
-		"sync": true,
-		"type": "flatfs"
-	  },
-	  "mountpoint": "/blocks",
-	  "prefix": "flatfs.datastore",
-	  "type": "measure"
-	},
-	{
-	  "child": {
-		"compression": "none",
-		"path": "datastore",
-		"type": "levelds"
-	  },
-	  "mountpoint": "/",
-	  "prefix": "leveldb.datastore",
-	  "type": "measure"
-	}
+  {
+    "child": {
+    "path": "blocks",
+    "shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
+    "sync": true,
+    "type": "flatfs"
+    },
+    "mountpoint": "/blocks",
+    "prefix": "flatfs.datastore",
+    "type": "measure"
+  },
+  {
+    "child": {
+    "compression": "none",
+    "path": "datastore",
+    "type": "levelds"
+    },
+    "mountpoint": "/",
+    "prefix": "leveldb.datastore",
+    "type": "measure"
+  }
   ],
   "type": "mount"
 }
@@ -831,7 +850,18 @@ We are working on developing a modern replacement. To support our efforts, pleas
 
 ### `Gateway.PublicGateways`
 
-`PublicGateways` is a dictionary for defining gateway behavior on specified hostnames.
+> [!IMPORTANT]
+> This configuration is **NOT** for HTTP Client, it is for HTTP Server – use this ONLY if you want to run your own IPFS gateway.
+
+`PublicGateways` is a configuration map used for dictionary for customizing gateway behavior
+on specified hostnames that point at your Kubo instance.
+
+It is useful when you want to run [Path gateway](https://specs.ipfs.tech/http-gateways/path-gateway/) on `example.com/ipfs/cid`,
+and [Subdomain gateway](https://specs.ipfs.tech/http-gateways/subdomain-gateway/) on `cid.ipfs.example.org`, 
+or limit `verifiable.example.net` to response types defined in [Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification.
+
+> [!CAUTION]
+> Keys (Hostnames) MUST be unique. Do not use the same parent domain for multiple gateway types, it will break origin isolation.
 
 Hostnames can optionally be defined with one or more wildcards.
 
@@ -864,7 +894,9 @@ Type: `array[string]`
 
 #### `Gateway.PublicGateways: UseSubdomains`
 
-A boolean to configure whether the gateway at the hostname provides [Origin isolation](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+A boolean to configure whether the gateway at the hostname should be
+a [Subdomain Gateway](https://specs.ipfs.tech/http-gateways/subdomain-gateway/) 
+and provide [Origin isolation](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
 between content roots.
 
 - `true` - enables [subdomain gateway](https://docs.ipfs.tech/how-to/address-ipfs-on-web/#subdomain-gateway) at `http://*.{hostname}/`
@@ -913,7 +945,7 @@ Type: `bool`
 
 An optional flag to explicitly configure whether subdomain gateway's redirects
 (enabled by `UseSubdomains: true`) should always inline a DNSLink name (FQDN)
-into a single DNS label:
+into a single DNS label ([specification](https://specs.ipfs.tech/http-gateways/subdomain-gateway/#host-request-header)):
 
 ```
 //example.com/ipns/example.net → HTTP 301 → //example-net.ipns.example.com
@@ -932,8 +964,14 @@ Type: `flag`
 #### `Gateway.PublicGateways: DeserializedResponses`
 
 An optional flag to explicitly configure whether this gateway responds to deserialized
-requests, or not. By default, it is enabled. When disabling this option, the gateway
-operates as a Trustless Gateway only: https://specs.ipfs.tech/http-gateways/trustless-gateway/.
+requests, or not. By default, it is enabled.
+
+When disabled, the gateway operates strictly as a [Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/).
+
+> [!TIP]
+> Disabling deserialized responses will protect you from acting as a free web hosting,
+> while still allowing trustless clients like [@helia/verified-fetch](https://www.npmjs.com/package/@helia/verified-fetch)
+> to utilize it for [trustless, verifiable data retrieval](https://docs.ipfs.tech/reference/http/gateway/#trustless-verifiable-retrieval).
 
 Default: same as global `Gateway.DeserializedResponses`
 
@@ -982,7 +1020,7 @@ Below is a list of the most common public gateway setups.
 
      `http://dweb.link/ipfs/{cid}` → `http://{cid}.ipfs.dweb.link`
 
-   - **X-Forwarded-Proto:** if you run Kubo behind a reverse proxy that provides TLS, make it add a `X-Forwarded-Proto: https` HTTP header to ensure users are redirected to `https://`, not `http://`. It will also ensure DNSLink names are inlined to fit in a single DNS label, so they work fine with a wildcart TLS cert ([details](https://github.com/ipfs/in-web-browsers/issues/169)). The NGINX directive is `proxy_set_header X-Forwarded-Proto "https";`.:
+   - **X-Forwarded-Proto:** if you run Kubo behind a reverse proxy that provides TLS, make it add a `X-Forwarded-Proto: https` HTTP header to ensure users are redirected to `https://`, not `http://`. It will also ensure DNSLink names are inlined to fit in a single DNS label, so they work fine with a wildcard TLS cert ([details](https://github.com/ipfs/in-web-browsers/issues/169)). The NGINX directive is `proxy_set_header X-Forwarded-Proto "https";`.:
 
      `http://dweb.link/ipfs/{cid}` → `https://{cid}.ipfs.dweb.link`
 
@@ -1275,7 +1313,7 @@ Example:
         "API" : {
           "Endpoint" : "https://pinningservice.tld:1234/my/api/path",
           "Key" : "someOpaqueKey"
-				}
+        }
       }
     }
   }
@@ -1602,7 +1640,7 @@ is able to find the 20 final nodes by looking up the in-memory recorded network 
 This means sustained higher memory to store the routing table
 and extra CPU and network bandwidth for each network scan.
 However the latency of individual read/write operations should be ~10x faster
-and the provide throughput up to 6 million times faster on larger datasets!
+and provide throughput up to 6 million times faster on larger datasets!
 
 This is not compatible with `Routing.Type` `custom`. If you are using composable routers
 you can configure this individually on each router.
@@ -1800,10 +1838,11 @@ node will try to connect to one or more private IP addresses whenever dialing
 another node, even if this other node is on a different network. This may
 trigger netscan alerts on some hosting providers or cause strain in some setups.
 
-The `server` configuration profile fills up this list with sensible defaults,
-preventing dials to all non-routable IP addresses (e.g., `/ip4/192.168.0.0/ipcidr/16`,
-which is the multiaddress representation of `192.168.0.0/16`) but you should always
-check settings against your own network and/or hosting provider.
+> [!TIP]
+> The [`server` configuration profile](#server-profile) fills up this list with sensible defaults,
+> preventing dials to all non-routable IP addresses (e.g., `/ip4/192.168.0.0/ipcidr/16`,
+> which is the [multiaddress][multiaddr] representation of `192.168.0.0/16`) but you should always
+> check settings against your own network and/or hosting provider.
 
 Default: `[]`
 
@@ -1821,7 +1860,7 @@ Type: `bool`
 
 ### `Swarm.DisableNatPortMap`
 
-Disable automatic NAT port forwarding.
+Disable automatic NAT port forwarding (turn off [UPnP](https://en.wikipedia.org/wiki/Universal_Plug_and_Play)).
 
 When not disabled (default), Kubo asks NAT devices (e.g., routers), to open
 up an external port and forward it to the port Kubo is running on. When this
@@ -1905,7 +1944,7 @@ Type: `flag`
 
 #### `Swarm.RelayService.Limit`
 
-Limits applied to every relayed connection.
+Limits are applied to every relayed connection.
 
 Default: `{}`
 
@@ -1966,12 +2005,7 @@ Type: `optionalInteger`
 
 #### `Swarm.RelayService.MaxReservationsPerPeer`
 
-Maximum number of reservations originating from the same peer.
-
-Default: `4`
-
-Type: `optionalInteger`
-
+**REMOVED in kubo 0.32 due to [go-libp2p#2974](https://github.com/libp2p/go-libp2p/pull/2974)**
 
 #### `Swarm.RelayService.MaxReservationsPerIP`
 
@@ -2099,13 +2133,19 @@ Type: `flag`
 
 #### `Swarm.ResourceMgr.MaxMemory`
 
-This is the max amount of memory to allow libp2p to use.
+This is the max amount of memory to allow go-libp2p to use.
+
 libp2p's resource manager will prevent additional resource creation while this limit is reached.
 This value is also used to scale the limit on various resources at various scopes
 when the default limits (discussed in [libp2p resource management](./libp2p-resource-management.md)) are used.
 For example, increasing this value will increase the default limit for incoming connections.
 
 It is possible to inspect the runtime limits via `ipfs swarm resources --help`.
+
+> [!IMPORTANT]
+> `Swarm.ResourceMgr.MaxMemory` is the memory limit for go-libp2p networking stack alone, and not for entire Kubo or Bitswap.
+>
+> To set memory limit for the entire Kubo process, use [`GOMEMLIMIT` environment variable](http://web.archive.org/web/20240222201412/https://kupczynski.info/posts/go-container-aware/) which all Go programs recognize, and then set `Swarm.ResourceMgr.MaxMemory` to less than your custom `GOMEMLIMIT`.
 
 Default: `[TOTAL_SYSTEM_MEMORY]/2`
 Type: `optionalBytes`
@@ -2122,12 +2162,12 @@ Type: `optionalInteger`
 
 #### `Swarm.ResourceMgr.Allowlist`
 
-A list of multiaddrs that can bypass normal system limits (but are still limited by the allowlist scope).
+A list of [multiaddrs][libp2p-multiaddrs] that can bypass normal system limits (but are still limited by the allowlist scope).
 Convenience config around [go-libp2p-resource-manager#Allowlist.Add](https://pkg.go.dev/github.com/libp2p/go-libp2p/p2p/host/resource-manager#Allowlist.Add).
 
 Default: `[]`
 
-Type: `array[string]` (multiaddrs)
+Type: `array[string]` ([multiaddrs][multiaddr])
 
 ### `Swarm.Transports`
 
@@ -2140,7 +2180,7 @@ Configuration section for libp2p _network_ transports. Transports enabled in
 this section will be used for dialing. However, to receive connections on these
 transports, multiaddrs for these transports must be added to `Addresses.Swarm`.
 
-Supported transports are: QUIC, TCP, WS, Relay and WebTransport.
+Supported transports are: QUIC, TCP, WS, Relay, WebTransport and WebRTCDirect.
 
 Each field in this section is a `flag`.
 
@@ -2172,8 +2212,8 @@ Default: Enabled
 Type: `flag`
 
 Listen Addresses:
-* /ip4/0.0.0.0/tcp/4002/ws
-* /ip6/::/tcp/4002/ws
+* /ip4/0.0.0.0/tcp/4001/ws
+* /ip6/::/tcp/4001/ws
 
 #### `Swarm.Transports.Network.QUIC`
 
@@ -2191,15 +2231,15 @@ Default: Enabled
 Type: `flag`
 
 Listen Addresses:
-* /ip4/0.0.0.0/udp/4001/quic-v1 (default)
-* /ip6/::/udp/4001/quic-v1 (default)
+- `/ip4/0.0.0.0/udp/4001/quic-v1` (default)
+- `/ip6/::/udp/4001/quic-v1` (default)
 
 #### `Swarm.Transports.Network.Relay`
 
 [Libp2p Relay](https://github.com/libp2p/specs/tree/master/relay) proxy
 transport that forms connections by hopping between multiple libp2p nodes.
 Allows IPFS node to connect to other peers using their `/p2p-circuit`
-multiaddrs.  This transport is primarily useful for bypassing firewalls and
+[multiaddrs][libp2p-multiaddrs].  This transport is primarily useful for bypassing firewalls and
 NATs.
 
 See also:
@@ -2239,32 +2279,39 @@ Default: Enabled
 
 Type: `flag`
 
-#### `Swarm.Transports.Network.WebRTCDirect`
+Listen Addresses:
+- `/ip4/0.0.0.0/udp/4001/quic-v1/webtransport` (default)
+- `/ip6/::/udp/4001/quic-v1/webtransport` (default)
 
-**Experimental:** the support for WebRTC Direct is currently experimental.
-This feature was introduced in [`go-libp2p@v0.32.0`](https://github.com/libp2p/go-libp2p/releases/tag/v0.32.0).
+#### `Swarm.Transports.Network.WebRTCDirect`
 
 [WebRTC Direct](https://github.com/libp2p/specs/blob/master/webrtc/webrtc-direct.md)
 is a transport protocol that provides another way for browsers to
 connect to the rest of the libp2p network. WebRTC Direct allows for browser
 nodes to connect to other nodes without special configuration, such as TLS
 certificates. This can be useful for browser nodes that do not yet support
-[WebTransport](https://blog.libp2p.io/2022-12-19-libp2p-webtransport/).
+[WebTransport](https://blog.libp2p.io/2022-12-19-libp2p-webtransport/),
+which is still relatively new and has [known issues](https://github.com/libp2p/js-libp2p/issues/2572).
 
-Enabling this transport allows Kubo node to act on `/udp/4002/webrtc-direct`
+Enabling this transport allows Kubo node to act on `/udp/4001/webrtc-direct`
 listeners defined in `Addresses.Swarm`, `Addresses.Announce` or
-`Addresses.AppendAnnounce`. At the moment, WebRTC Direct doesn't support listening on the same port as a QUIC or WebTransport listener
+`Addresses.AppendAnnounce`.
 
-**NOTE:** at the moment, WebRTC Direct cannot be used to connect to a browser
-node to a node that is behind a NAT or firewall.
-This requires using normal
-[WebRTC](https://github.com/libp2p/specs/blob/master/webrtc/webrtc.md),
-which is currently being worked on in
-[go-libp2p#2009](https://github.com/libp2p/go-libp2p/issues/2009).
+> [!NOTE]
+> WebRTC Direct is browser-to-node. It cannot be used to connect a browser
+> node to a node that is behind a NAT or firewall (without UPnP port mapping).
+> The browser-to-private requires using normal
+> [WebRTC](https://github.com/libp2p/specs/blob/master/webrtc/webrtc.md),
+> which is currently being worked on in
+> [go-libp2p#2009](https://github.com/libp2p/go-libp2p/issues/2009).
 
-Default: Disabled
+Default: Enabled
 
 Type: `flag`
+
+Listen Addresses:
+- `/ip4/0.0.0.0/udp/4001/webrtc-direct` (default)
+- `/ip6/::/udp/4001/webrtc-direct` (default)
 
 ### `Swarm.Transports.Security`
 
@@ -2281,9 +2328,9 @@ receiver supports. When establishing an _inbound_ connection, Kubo will let
 the initiator choose the protocol, but will refuse to use any of the disabled
 transports.
 
-Supported transports are: TLS (priority 100) and Noise (priority 300).
+Supported transports are: TLS (priority 100) and Noise (priority 200).
 
-No default priority will ever be less than 100.
+No default priority will ever be less than 100. Lower values have precedence.
 
 #### `Swarm.Transports.Security.TLS`
 
@@ -2306,7 +2353,7 @@ TLS as the cross-platform, default libp2p protocol due to ease of
 implementation. It is currently enabled by default but with low priority as it's
 not yet widely supported.
 
-Default: `300`
+Default: `200`
 
 Type: `priority`
 
@@ -2342,7 +2389,7 @@ Please remove this option from your config.
 
 ## `DNS`
 
-Options for configuring DNS resolution for [DNSLink](https://docs.ipfs.tech/concepts/dnslink/) and `/dns*` [Multiaddrs](https://github.com/multiformats/multiaddr/).
+Options for configuring DNS resolution for [DNSLink](https://docs.ipfs.tech/concepts/dnslink/) and `/dns*` [Multiaddrs][libp2p-multiaddrs].
 
 ### `DNS.Resolvers`
 
@@ -2368,11 +2415,11 @@ Example:
 Be mindful that:
 - Currently only `https://` URLs for [DNS over HTTPS (DoH)](https://en.wikipedia.org/wiki/DNS_over_HTTPS) endpoints are supported as values.
 - The default catch-all resolver is the cleartext one provided by your operating system. It can be overridden by adding a DoH entry for the DNS root indicated by  `.` as illustrated above.
-- Out-of-the-box support for selected decentralized TLDs relies on a [centralized service which is provided on best-effort basis](https://www.cloudflare.com/distributed-web-gateway-terms/). The implicit DoH resolvers are:
+- Out-of-the-box support for selected non-ICANN TLDs relies on third-party centralized services provided by respective communities on best-effort basis. The implicit DoH resolvers are:
   ```json
   {
-    "eth.": "https://resolver.cloudflare-eth.com/dns-query",
-    "crypto.": "https://resolver.cloudflare-eth.com/dns-query"
+    "eth.": "https://dns.eth.limo/dns-query",
+    "crypto.": "https://resolver.unstoppable.io/dns-query"
   }
   ```
   To get all the benefits of a decentralized naming system we strongly suggest setting DoH endpoint to an empty string and running own decentralized resolver as catch-all one on localhost.
@@ -2435,3 +2482,294 @@ The default hash function. Commands affected: `ipfs add`, `ipfs block put`, `ipf
 Default: `sha2-256`
 
 Type: `optionalString`
+
+### `Import.BatchMaxNodes`
+
+The maximum number of nodes in a write-batch. The total size of the batch is limited by `BatchMaxnodes` and `BatchMaxSize`.
+
+Increasing this will batch more items together when importing data with `ipfs dag import`, which can speed things up.
+
+Default: `128`
+
+Type: `optionalInteger`
+
+### `Import.BatchMaxSize`
+
+The maximum size of a single write-batch (computed as the sum of the sizes of the blocks). The total size of the batch is limited by `BatchMaxnodes` and `BatchMaxSize`.
+
+Increasing this will batch more items together when importing data with `ipfs dag import`, which can speed things up.
+
+Default: `20971520` (20MiB)
+
+Type: `optionalInteger`
+
+## `Version`
+
+Options to configure agent version announced to the swarm, and leveraging
+other peers version for detecting when there is time to update.
+
+### `Version.AgentSuffix`
+
+Optional suffix to the AgentVersion presented by `ipfs id` and exposed via [libp2p identify protocol](https://github.com/libp2p/specs/blob/master/identify/README.md#agentversion).
+
+The value from config takes precedence over value passed via `ipfs daemon --agent-version-suffix`.
+
+> [!NOTE]
+> Setting a custom version suffix helps with ecosystem analysis, such as Amino DHT reports published at https://stats.ipfs.network
+
+Default: `""` (no suffix, or value from `ipfs daemon --agent-version-suffix=`)
+
+Type: `optionalString`
+
+### `Version.SwarmCheckEnabled`
+
+Observe the AgentVersion of swarm peers and log warning when
+`SwarmCheckPercentThreshold` of peers runs version higher than this node.
+
+Default: `true`
+
+Type: `flag`
+
+### `Version.SwarmCheckPercentThreshold`
+
+Control the percentage of `kubo/` peers running new version required to
+trigger update warning.
+
+Default: `5`
+
+Type: `optionalInteger` (1-100)
+
+## Profiles
+
+Configuration profiles allow to tweak configuration quickly. Profiles can be
+applied with the `--profile` flag to `ipfs init` or with the `ipfs config profile
+apply` command. When a profile is applied a backup of the configuration file
+will be created in `$IPFS_PATH`.
+
+Configuration profiles can be applied additively. For example, both the `test-cid-v1` and `lowpower` profiles can be applied one after the other.
+The available configuration profiles are listed below. You can also find them
+documented in `ipfs config profile --help`.
+
+### `server` profile
+
+Disables local [`Discovery.MDNS`](#discoverymdns), [turns off uPnP NAT port mapping](#swarmdisablenatportmap),  and blocks connections to
+IPv4 and IPv6 prefixes that are [private, local only, or unrouteable](https://github.com/ipfs/kubo/blob/b71cf0d15904bdef21fe2eee5f1118a274309a4d/config/profile.go#L24-L43).
+
+Recommended when running IPFS on machines with public IPv4 addresses (no NAT, no uPnP)
+at providers that interpret local IPFS discovery and traffic as netscan abuse ([example](https://github.com/ipfs/kubo/issues/10327)).
+
+### `randomports` profile
+
+Use a random port number for the incoming swarm connections.
+Used for testing.
+
+### `default-datastore` profile
+
+Configures the node to use the default datastore (flatfs).
+
+Read the "flatfs" profile description for more information on this datastore.
+
+This profile may only be applied when first initializing the node.
+
+### `local-discovery` profile
+
+Enables local [`Discovery.MDNS`](#discoverymdns) (enabled by default).
+
+Useful to re-enable local discovery after it's disabled by another profile
+(e.g., the server profile).
+
+`test` profile
+
+Reduces external interference of IPFS daemon, this
+is useful when using the daemon in test environments.
+
+### `default-networking` profile
+
+Restores default network settings.
+Inverse profile of the test profile.
+
+### `flatfs` profile
+
+Configures the node to use the flatfs datastore.
+Flatfs is the default, most battle-tested and reliable datastore.
+
+You should use this datastore if:
+
+- You need a very simple and very reliable datastore, and you trust your
+  filesystem. This datastore stores each block as a separate file in the
+  underlying filesystem so it's unlikely to lose data unless there's an issue
+  with the underlying file system.
+- You need to run garbage collection in a way that reclaims free space as soon as possible.
+- You want to minimize memory usage.
+- You are ok with the default speed of data import, or prefer to use `--nocopy`.
+
+> [!WARNING]
+> This profile may only be applied when first initializing the node via `ipfs init --profile flatfs`
+
+> [!NOTE]
+> See caveats and configuration options at [`datastores.md#flatfs`](datastores.md#flatfs)
+
+### `pebbleds` profile
+
+Configures the node to use the **EXPERIMENTAL** pebble high-performance datastore.
+
+Pebble is a LevelDB/RocksDB inspired key-value store focused on performance and internal usage by CockroachDB.
+You should use this datastore if:
+
+- You need a datastore that is focused on performance.
+- You need a datastore that is good for multi-terabyte data sets.
+- You need reliability by default, but may choose to disable WAL for maximum performance when reliability is not critical.
+- You want a datastore that does not need GC cycles and does not use more space than necessary
+- You want a datastore that does not take several minutes to start with large repositories
+- You want a datastore that performs well even with default settings, but can optimized by setting configuration to tune it for your specific needs.
+
+> [!WARNING]
+> This profile may only be applied when first initializing the node via `ipfs init --profile pebbleds`
+
+> [!NOTE]
+> See other caveats and configuration options at [`datastores.md#pebbleds`](datastores.md#pebbleds)
+
+### `badgerds` profile
+
+Configures the node to use the **legacy** badgerv1 datastore.
+
+> [!CAUTION]
+> This is based on very old badger 1.x, which has known bugs and is no longer supported by the upstream team.
+> It is provided here only for pre-existing users, allowing them to migrate away to more modern datastore.
+> Do not use it for new deployments, unless you really, really know what you are doing.
+
+Also, be aware that:
+
+- This datastore will not properly reclaim space when your datastore is
+  smaller than several gigabytes. If you run IPFS with `--enable-gc`, you plan on storing very little data in
+  your IPFS node, and disk usage is more critical than performance, consider using
+  `flatfs`.
+- This datastore uses up to several gigabytes of memory.
+- Good for medium-size datastores, but may run into performance issues if your dataset is bigger than a terabyte.
+- The current implementation is based on old badger 1.x which is no longer supported by the upstream team.
+
+> [!WARNING]
+> This profile may only be applied when first initializing the node via `ipfs init --profile badgerds`
+
+> [!NOTE]
+> See other caveats and configuration options at [`datastores.md#pebbleds`](datastores.md#pebbleds)
+
+### `lowpower` profile
+
+Reduces daemon overhead on the system by disabling optional swarm services.
+
+- [`Routing.Type`](#routingtype) set to `autoclient` (no DHT server, only client).
+- `Swarm.ConnMgr` set to maintain minimum number of p2p connections at a time.
+- Disables [`AutoNAT`](#autonat).
+- Disables [`Swam.RelayService`](#swarmrelayservice).
+
+> [!NOTE]
+> This profile is provided for legacy reasons.
+> With modern Kubo setting the above should not be necessary.
+
+### `announce-off` profile
+
+Disables [Reprovider](#reprovider) system (and announcing to Amino DHT).
+
+> [!CAUTION]
+> The main use case for this is setups with manual Peering.Peers config.
+> Data from this node will not be announced on the DHT. This will make
+> DHT-based routing an data retrieval impossible if this node is the only
+> one hosting it, and other peers are not already connected to it.
+
+### `announce-on` profile
+
+(Re-)enables [Reprovider](#reprovider) system (reverts [`announce-off` profile](#annouce-off-profile).
+
+### `legacy-cid-v0` profile
+
+Makes UnixFS import (`ipfs add`) produce legacy CIDv0 with no raw leaves, sha2-256 and 256 KiB chunks.
+
+> [!NOTE]
+> This profile is provided for legacy users and should not be used for new projects.
+
+### `test-cid-v1` profile
+
+Makes UnixFS import (`ipfs add`) produce modern CIDv1 with raw leaves, sha2-256 and 1 MiB chunks.
+
+> [!NOTE]
+> This profile will become the new implicit default, provided for testing purposes.
+> Follow [kubo#4143](https://github.com/ipfs/kubo/issues/4143) for more details.
+
+## Types
+
+This document refers to the standard JSON types (e.g., `null`, `string`,
+`number`, etc.), as well as a few custom types, described below.
+
+### `flag`
+
+Flags allow enabling and disabling features. However, unlike simple booleans,
+they can also be `null` (or omitted) to indicate that the default value should
+be chosen. This makes it easier for Kubo to change the defaults in the
+future unless the user _explicitly_ sets the flag to either `true` (enabled) or
+`false` (disabled). Flags have three possible states:
+
+- `null` or missing (apply the default value).
+- `true` (enabled)
+- `false` (disabled)
+
+### `priority`
+
+Priorities allow specifying the priority of a feature/protocol and disabling the
+feature/protocol. Priorities can take one of the following values:
+
+- `null`/missing (apply the default priority, same as with flags)
+- `false` (disabled)
+- `1 - 2^63` (priority, lower is preferred)
+
+### `strings`
+
+Strings is a special type for conveniently specifying a single string, an array
+of strings, or null:
+
+- `null`
+- `"a single string"`
+- `["an", "array", "of", "strings"]`
+
+### `duration`
+
+Duration is a type for describing lengths of time, using the same format go
+does (e.g, `"1d2h4m40.01s"`).
+
+### `optionalInteger`
+
+Optional integers allow specifying some numerical value which has
+an implicit default when missing from the config file:
+
+- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault(value)`)
+- an integer between `-2^63` and `2^63-1` (i.e. `-9223372036854775808` to `9223372036854775807`)
+
+### `optionalBytes`
+
+Optional Bytes allow specifying some number of bytes which has
+an implicit default when missing from the config file:
+
+- `null`/missing (apply the default value defined in Kubo sources)
+- a string value indicating the number of bytes, including human readable representations:
+  - [SI sizes](https://en.wikipedia.org/wiki/Metric_prefix#List_of_SI_prefixes) (metric units, powers of 1000), e.g. `1B`, `2kB`, `3MB`, `4GB`, `5TB`, …)
+  - [IEC sizes](https://en.wikipedia.org/wiki/Binary_prefix#IEC_prefixes) (binary units, powers of 1024), e.g. `1B`, `2KiB`, `3MiB`, `4GiB`, `5TiB`, …)
+
+### `optionalString`
+
+Optional strings allow specifying some string value which has
+an implicit default when missing from the config file:
+
+- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault("value")`)
+- a string
+
+### `optionalDuration`
+
+Optional durations allow specifying some duration value which has
+an implicit default when missing from the config file:
+
+- `null`/missing will apply the default value defined in Kubo sources (`.WithDefault("1h2m3s")`)
+- a string with a valid [go duration](#duration)  (e.g, `"1d2h4m40.01s"`).
+
+----
+
+[multiaddr]: https://docs.ipfs.tech/concepts/glossary/#multiaddr
